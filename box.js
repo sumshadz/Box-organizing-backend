@@ -10,15 +10,33 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
 }); 
-const boxes = [];
+const boxes = [
+  {
+    id: "01",
+    height: 1,
+    width: 1.5,
+    depth: 2,
+    weight: 20,
+    address: "Sonepur"
+  },
+  {
+    id: "02",
+    height: 1,
+    width: 1,
+    depth: 2,
+    weight: 5,
+    address: "Bhubaneswar"
+  },
+  {
+    id: "03",
+    height: 3,
+    width: 3,
+    depth: 2,
+    weight: 10,
+    address: "Bangalore"
+  }
+];
 
-// Helper function to check if one box can be placed on top of another box
-function canPlaceOnTop(lowerBox, upperBox) {
-  const [lh, lw, ld] = lowerBox;
-  const [uh, uw, ud] = upperBox;
-
-  return (lw > uw && ld > ud) || (lw > ud && ld > uw);
-}
 
 // API endpoint to add a box
 app.post('/boxes', (req, res) => {
@@ -50,6 +68,7 @@ app.get('/boxes', (req, res) => {
 res.json(boxesWithAllFields);
 });
 
+// API endpoint to delete a box
 app.delete('/boxes/:id', (req, res) => {
   const { id } = req.params;
   const index = boxes.findIndex(box => box.id === id);
@@ -62,23 +81,67 @@ app.delete('/boxes/:id', (req, res) => {
   res.json({ message: 'Box removed successfully' });
 });
 
-// API endpoint to find the tallest stack of boxes
-app.get('/tallest-stack', (req, res) => {
-  const sortedBoxes = [...boxes].sort((a, b) => b[0] - a[0]);
-  const n = sortedBoxes.length;
-  const dp = new Array(n).fill(0);
+function calculateVolume(box) {
+  const { height, width, depth } = box;
+  const rotatedWidth = Math.min(width, depth);
+  const rotatedDepth = Math.max(width, depth);
+  return height * rotatedWidth * rotatedDepth;
+}
 
-  for (let i = 0; i < n; i++) {
-    dp[i] = sortedBoxes[i][0];
-    for (let j = 0; j < i; j++) {
-      if (canPlaceOnTop(sortedBoxes[j], sortedBoxes[i])) {
-        dp[i] = Math.max(dp[i], dp[j] + sortedBoxes[i][0]);
+// Function to compare boxes based on volume
+function compareBoxes(box1, box2) {
+  const volume1 = calculateVolume(box1);
+  const volume2 = calculateVolume(box2);
+  return volume2 - volume1;
+}
+
+// Function to arrange the boxes
+function arrangeBoxes(boxes) {
+  const sortedBoxes = boxes.sort(compareBoxes);
+  const n = sortedBoxes.length;
+  const memo = new Array(n).fill(-1);
+
+  function findMaxHeight(index) {
+    if (memo[index] !== -1) return memo[index];
+    let maxHeight = 0;
+    for (let i = index + 1; i < n; i++) {
+      if (
+        sortedBoxes[i].width < sortedBoxes[index].width &&
+        sortedBoxes[i].depth < sortedBoxes[index].depth
+      ) {
+        const height = findMaxHeight(i);
+        maxHeight = Math.max(maxHeight, height);
       }
     }
+    memo[index] = sortedBoxes[index].height + maxHeight;
+    return memo[index];
   }
 
-  const maxHeight = Math.max(...dp);
-  res.json({ maxHeight });
+  let maxHeight = 0;
+  for (let i = 0; i < n; i++) {
+    const height = findMaxHeight(i);
+    maxHeight = Math.max(maxHeight, height);
+  }
+
+  const arrangedBoxes = sortedBoxes.slice(0, n);
+  const ans = arrangedBoxes.reverse();
+  return ans;
+}
+
+// API end point to arrange the boxes
+app.get('/arrange-boxes', (req, res) => {
+  const arrangedBoxes = arrangeBoxes(boxes);
+  res.json(arrangedBoxes);
+});
+
+// API end point to get the height of the stack of boxes after arrangement
+app.get('/height-of-stack', (req, res) => {
+  const arrangedBoxes = arrangeBoxes(boxes);
+  let height=0;
+  for(let i=0;i<arrangedBoxes.length;i++){
+    height+=arrangedBoxes[i].height;
+  }
+  res.json(height);
 });
 
 // Start the server
